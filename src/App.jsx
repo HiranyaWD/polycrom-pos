@@ -5,7 +5,9 @@ import Products from './pages/Products'
 import NewBill from './pages/NewBill'
 import Bills from './pages/Bills'
 import TestPage from './pages/TestPage'
+import Backup from './pages/Backup' 
 import ProtectedLayout from './components/ProtectedLayout'
+
 
 export default function App() {
   return (
@@ -17,6 +19,7 @@ export default function App() {
         <Route path="/products" element={<Products />} />
         <Route path="/new-bill" element={<NewBill />} />
         <Route path="/bills" element={<Bills />} />
+        <Route path="/backup" element={<Backup />} />
       </Route>
 
       <Route path="/test" element={<TestPage />} />

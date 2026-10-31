@@ -1,5 +1,7 @@
 import { useState } from 'react'
+import { X } from 'lucide-react'
 import { supabase } from '../supabase'
+import { Modal } from './ui'
 
 export default function ProductForm({ product, onClose, onSaved }) {
   const isEdit = !!product
@@ -18,11 +20,15 @@ export default function ProductForm({ product, onClose, onSaved }) {
     setForm(f => ({ ...f, [field]: value }))
   }
 
+  const cost = Number(form.cost_price) || 0
+  const price = Number(form.sell_price) || 0
+  const margin = price - cost
+
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
 
-    if (Number(form.sell_price) < Number(form.cost_price)) {
+    if (price < cost) {
       if (!confirm('Selling price is lower than cost price. Save anyway?')) return
     }
 
@@ -30,8 +36,8 @@ export default function ProductForm({ product, onClose, onSaved }) {
     const data = {
       name: form.name.trim(),
       code: form.code.trim() || null,
-      cost_price: Number(form.cost_price) || 0,
-      sell_price: Number(form.sell_price) || 0,
+      cost_price: cost,
+      sell_price: price,
       low_stock_level: Number(form.low_stock_level) || 0,
     }
 
@@ -59,67 +65,83 @@ export default function ProductForm({ product, onClose, onSaved }) {
     }
   }
 
-  const input = 'w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500'
-  const label = 'block text-sm font-medium text-gray-700 mb-1'
-
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
-      <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-lg w-full max-w-md p-6 space-y-4 max-h-[90vh] overflow-y-auto">
-        <h2 className="text-xl font-bold text-gray-800">{isEdit ? 'Edit product' : 'Add product'}</h2>
-
-        <div>
-          <label className={label}>Product name *</label>
-          <input required className={input} value={form.name} onChange={e => update('name', e.target.value)} />
+    <Modal onClose={onClose}>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="flex items-start justify-between">
+          <div>
+            <h2 className="text-2xl font-light tracking-tight">{isEdit ? 'Edit product' : 'Add product'}</h2>
+            <p className="text-sm muted">{isEdit ? product.name : 'Fill in the product details'}</p>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close"
+            className="w-9 h-9 rounded-full bg-white/5 border border-white/10 grid place-items-center hover:bg-white/10">
+            <X size={16} />
+          </button>
         </div>
 
         <div>
-          <label className={label}>Code (optional)</label>
-          <input className={input} value={form.code} onChange={e => update('code', e.target.value)} />
+          <label className="label">Product name *</label>
+          <input required autoFocus className="field" value={form.name} onChange={e => update('name', e.target.value)} />
+        </div>
+
+        <div>
+          <label className="label">Code (optional)</label>
+          <input className="field" value={form.code} onChange={e => update('code', e.target.value)} />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={label}>Cost price *</label>
-            <input required type="number" min="0" step="0.01" className={input}
+            <label className="label">Cost price *</label>
+            <input required type="number" min="0" step="0.01" className="field"
               value={form.cost_price} onChange={e => update('cost_price', e.target.value)} />
           </div>
           <div>
-            <label className={label}>Selling price *</label>
-            <input required type="number" min="0" step="0.01" className={input}
+            <label className="label">Selling price *</label>
+            <input required type="number" min="0" step="0.01" className="field"
               value={form.sell_price} onChange={e => update('sell_price', e.target.value)} />
           </div>
         </div>
 
+        {/* Live margin preview */}
+        {(cost > 0 || price > 0) && (
+          <div className={`flex justify-between text-sm rounded-2xl px-4 py-2.5 border ${
+            margin >= 0 ? 'bg-accent/10 border-accent/25 text-accent' : 'bg-red-500/10 border-red-400/25 text-red-300'
+          }`}>
+            <span>Profit per item</span>
+            <span className="font-semibold">
+              Rs. {margin.toFixed(2)}{cost > 0 && ` (${((margin / cost) * 100).toFixed(0)}%)`}
+            </span>
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-3">
           {!isEdit && (
             <div>
-              <label className={label}>Opening stock</label>
-              <input type="number" min="0" className={input}
+              <label className="label">Opening stock</label>
+              <input type="number" min="0" className="field"
                 value={form.qty} onChange={e => update('qty', e.target.value)} />
             </div>
           )}
           <div>
-            <label className={label}>Low stock alert at</label>
-            <input type="number" min="0" className={input}
+            <label className="label">Low stock alert at</label>
+            <input type="number" min="0" className="field"
               value={form.low_stock_level} onChange={e => update('low_stock_level', e.target.value)} />
           </div>
         </div>
 
         {isEdit && (
-          <p className="text-xs text-gray-500">Current stock: {product.qty}. Use Stock in to add stock.</p>
+          <p className="text-xs muted">Current stock: {product.qty}. Use Stock in to add stock.</p>
         )}
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-red-300">{error}</p>}
 
         <div className="flex gap-3 pt-2">
-          <button type="button" onClick={onClose} className="flex-1 border border-gray-300 rounded-lg py-2 hover:bg-gray-50">
-            Cancel
-          </button>
-          <button type="submit" disabled={saving} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-2 disabled:opacity-60">
+          <button type="button" onClick={onClose} className="btn btn-ghost flex-1">Cancel</button>
+          <button type="submit" disabled={saving} className="btn btn-lime flex-1">
             {saving ? 'Saving...' : 'Save'}
           </button>
         </div>
       </form>
-    </div>
+    </Modal>
   )
 }

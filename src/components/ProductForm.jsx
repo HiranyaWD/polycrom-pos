@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { X } from 'lucide-react'
+import { X, Trash2 } from 'lucide-react'
 import { supabase } from '../supabase'
 import { Modal } from './ui'
 
-export default function ProductForm({ product, onClose, onSaved }) {
+export default function ProductForm({ product, onClose, onSaved, onRemoved }) {
   const isEdit = !!product
   const [form, setForm] = useState({
     name: product?.name ?? '',
@@ -63,6 +63,17 @@ export default function ProductForm({ product, onClose, onSaved }) {
     } else {
       onSaved()
     }
+  }
+
+  // Hides the product (nothing is deleted, so old bills keep working)
+  async function removeProduct() {
+    if (!confirm(`Remove "${product.name}"?\n\nIt will be hidden from the product list and new bills. Old bills will still show it.`)) return
+    setSaving(true)
+    setError('')
+    const { error } = await supabase.from('products').update({ is_active: false }).eq('id', product.id)
+    setSaving(false)
+    if (error) setError(error.message)
+    else onRemoved?.()
   }
 
   return (
@@ -141,6 +152,15 @@ export default function ProductForm({ product, onClose, onSaved }) {
             {saving ? 'Saving...' : 'Save'}
           </button>
         </div>
+
+        {/* Remove lives here, only in edit mode, away from Save */}
+        {isEdit && (
+          <div className="border-t border-white/10 pt-4">
+            <button type="button" onClick={removeProduct} disabled={saving} className="btn btn-danger w-full">
+              <Trash2 size={15} /> Remove product
+            </button>
+          </div>
+        )}
       </form>
     </Modal>
   )

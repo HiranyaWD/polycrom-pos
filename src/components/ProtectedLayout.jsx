@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Navigate, NavLink, Outlet, useLocation, useNavigate } from 'react-router'
-import { LayoutDashboard, Package, Plus, ReceiptText, DatabaseBackup, LogOut } from 'lucide-react'
+import { LayoutDashboard, Package, Plus, ReceiptText, Wallet, BarChart3, DatabaseBackup, Settings, LogOut } from 'lucide-react'
 import { supabase } from '../supabase'
 import { Backdrop } from './ui'
 
@@ -9,7 +9,10 @@ const links = [
   { to: '/products', label: 'Products', icon: Package },
   { to: '/new-bill', label: 'New Bill', icon: Plus },
   { to: '/bills', label: 'Bills', icon: ReceiptText },
+  { to: '/credit', label: 'Credit', icon: Wallet },
+  { to: '/reports', label: 'Reports', icon: BarChart3 },
   { to: '/backup', label: 'Backup', icon: DatabaseBackup },
+  { to: '/settings', label: 'Settings', icon: Settings },
 ]
 
 export default function ProtectedLayout() {

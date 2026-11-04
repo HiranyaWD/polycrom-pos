@@ -5,7 +5,6 @@ import { Modal } from './ui'
 
 export default function StockInForm({ product, onClose, onSaved }) {
   const [qty, setQty] = useState('')
-  const [note, setNote] = useState('')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -19,10 +18,11 @@ export default function StockInForm({ product, onClose, onSaved }) {
     }
 
     setSaving(true)
+    // No note: the database records the logged-in user's name automatically
     const { error } = await supabase.rpc('add_stock', {
       p_product_id: product.id,
       p_qty: amount,
-      p_note: note.trim() || null,
+      p_note: null,
     })
     setSaving(false)
 
@@ -66,11 +66,7 @@ export default function StockInForm({ product, onClose, onSaved }) {
             value={qty} onChange={e => setQty(e.target.value)} />
         </div>
 
-        <div>
-          <label className="label">Note (optional)</label>
-          <input placeholder="e.g. Invoice no, supplier" className="field"
-            value={note} onChange={e => setNote(e.target.value)} />
-        </div>
+        <p className="text-xs muted">Saved with your name and the current date and time.</p>
 
         {error && <p className="text-sm text-red-300">{error}</p>}
 

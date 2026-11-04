@@ -48,6 +48,12 @@ export default function InvoicePrint() {
 
   const isThermal = PAPER === '80mm'
   const cancelled = invoice.status === 'cancelled'
+  const isCredit = invoice.payment_type === 'credit'
+
+  // Older bills (before discounts) have no subtotal, so use the total
+  const subtotal = Number(invoice.subtotal ?? invoice.total)
+  const discount = Number(invoice.discount_amount ?? 0)
+  const discountPct = Number(invoice.discount_percent ?? 0)
 
   return (
     <div>
@@ -97,6 +103,11 @@ export default function InvoicePrint() {
           <span>{new Date(invoice.created_at).toLocaleString()}</span>
         </div>
 
+        {/* Shop name only, as the client asked */}
+        {invoice.shop_name && (
+          <p className="mb-2">Shop: <b>{invoice.shop_name}</b></p>
+        )}
+
         <table className="w-full">
           <thead>
             <tr className="border-b border-dashed border-black">
@@ -118,9 +129,31 @@ export default function InvoicePrint() {
           </tbody>
         </table>
 
-        <div className="border-t border-dashed border-black mt-2 pt-2 flex justify-between font-bold">
-          <span>TOTAL</span>
-          <span>Rs. {Number(invoice.total).toFixed(2)}</span>
+        {/* Totals */}
+        <div className="border-t border-dashed border-black mt-2 pt-2 space-y-1">
+          <div className="flex justify-between">
+            <span>Subtotal</span>
+            <span>Rs. {subtotal.toFixed(2)}</span>
+          </div>
+          {discount > 0 && (
+            <div className="flex justify-between">
+              <span>Discount ({discountPct}%)</span>
+              <span>- Rs. {discount.toFixed(2)}</span>
+            </div>
+          )}
+          <div className="flex justify-between font-bold text-[1.1em] pt-1">
+            <span>TOTAL</span>
+            <span>Rs. {Number(invoice.total).toFixed(2)}</span>
+          </div>
+        </div>
+
+        {/* Payment */}
+        <div className="border-t border-dashed border-black mt-2 pt-2 text-center font-bold">
+          {cancelled
+            ? 'Cancelled'
+            : isCredit
+              ? 'ON CREDIT: to be paid later'
+              : 'PAID'}
         </div>
 
         <p className="text-center mt-4">Thank you!</p>

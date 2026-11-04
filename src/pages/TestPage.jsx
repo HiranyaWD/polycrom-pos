@@ -4,7 +4,6 @@ import { supabase } from '../supabase'
 export default function App() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [user, setUser] = useState(null)
   const [products, setProducts] = useState([])
   const [bills, setBills] = useState([])
   const [message, setMessage] = useState('')

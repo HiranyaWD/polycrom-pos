@@ -11,6 +11,19 @@ function dayKey(date) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
+// Adds up bill totals per group (route or shop), biggest first
+function groupSales(bills, keyOf) {
+  const map = new Map()
+  for (const b of bills) {
+    const key = keyOf(b)
+    const row = map.get(key) ?? { name: key, total: 0, count: 0 }
+    row.total += Number(b.total)
+    row.count += 1
+    map.set(key, row)
+  }
+  return [...map.values()].sort((a, b) => b.total - a.total)
+}
+
 export default function Dashboard() {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
@@ -27,7 +40,7 @@ export default function Dashboard() {
       start.setDate(start.getDate() - 6)
 
       const [week, recent, prods] = await Promise.all([
-        supabase.from('invoices').select('id, total, created_at')
+        supabase.from('invoices').select('id, total, created_at, shop_name, route_name, payment_type')
           .eq('status', 'paid')
           .gte('created_at', start.toISOString()),
         supabase.from('invoices').select('id, invoice_no, total, status, created_at')
@@ -71,6 +84,11 @@ export default function Dashboard() {
   const maxDay = Math.max(...days.map(d => d.total), 1)
   const weekTotal = days.reduce((s, d) => s + d.total, 0)
   const avgBill = today.count ? today.total / today.count : 0
+
+  // Sales by route and top shops for the last 7 days (paid bills, cash and credit)
+  const byRoute = groupSales(weekBills, b => b.route_name || 'No route')
+  const byShop = groupSales(weekBills, b => b.shop_name || 'No shop').slice(0, 5)
+  const maxRoute = Math.max(...byRoute.map(r => r.total), 1)
 
   // % change vs yesterday
   const change = yesterday.total > 0 ? ((today.total - yesterday.total) / yesterday.total) * 100 : null
@@ -219,6 +237,67 @@ export default function Dashboard() {
                 </ul>
               )}
             </div>
+          </section>
+        </Reveal>
+      </div>
+
+      {/* Routes and shops */}
+      <div className="grid lg:grid-cols-2 gap-4 mt-4">
+        <Reveal delay={440}>
+          <section className="glass p-6 h-full">
+            <h2 className="text-lg font-medium">Sales by route, last 7 days</h2>
+            {byRoute.length === 0 ? (
+              <p className="text-sm muted mt-4">No sales this week.</p>
+            ) : (
+              <ul className="mt-5 space-y-4">
+                {byRoute.map((r, i) => (
+                  <li key={r.name} className="anim-fade-up" style={{ '--d': `${480 + i * 70}ms` }}>
+                    <div className="flex justify-between gap-3 text-sm mb-1.5">
+                      <span className="font-semibold truncate">{r.name}</span>
+                      <span className="text-white/60 shrink-0">
+                        <Money value={r.total} className="text-white/90" /> · {r.count} bill{r.count === 1 ? '' : 's'}
+                      </span>
+                    </div>
+                    <div className="h-2.5 rounded-full bg-white/5 overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-accent/80 shadow-[0_0_14px_rgba(198,244,50,0.35)] transition-[width] duration-700"
+                        style={{ width: `${(r.total / maxRoute) * 100}%` }}
+                      />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </Reveal>
+
+        <Reveal delay={500}>
+          <section className="glass p-6 h-full">
+            <h2 className="text-lg font-medium">Top shops, last 7 days</h2>
+            {byShop.length === 0 ? (
+              <p className="text-sm muted mt-4">No sales this week.</p>
+            ) : (
+              <ul className="mt-5 space-y-2">
+                {byShop.map((s, i) => (
+                  <li
+                    key={s.name}
+                    className="anim-fade-up flex items-center justify-between gap-3 rounded-2xl bg-white/[0.04] border border-white/5 px-4 py-2.5"
+                    style={{ '--d': `${560 + i * 60}ms` }}
+                  >
+                    <span className="flex items-center gap-3 min-w-0">
+                      <span className="w-7 h-7 shrink-0 rounded-full bg-white/5 border border-white/10 grid place-items-center text-xs font-semibold">
+                        {i + 1}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block font-semibold truncate">{s.name}</span>
+                        <span className="block text-xs muted">{s.count} bill{s.count === 1 ? '' : 's'}</span>
+                      </span>
+                    </span>
+                    <Money value={s.total} className="font-semibold text-accent shrink-0" />
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
         </Reveal>
       </div>

@@ -1,9 +1,28 @@
 import { useEffect, useState } from 'react'
-import { Plus, Search, PackagePlus, Pencil, Trash2, Boxes, AlertTriangle, PackageX, Wallet } from 'lucide-react'
+import { Link } from 'react-router'
+import { Plus, Search, PackagePlus, Pencil, Boxes, AlertTriangle, PackageX, Wallet, History } from 'lucide-react'
 import { supabase } from '../supabase'
 import ProductForm from '../components/ProductForm'
 import StockInForm from '../components/StockInForm'
 import { CountUp, Money, PageTitle, Reveal, StockChip } from '../components/ui'
+
+function stamp(value) {
+  if (!value) return ''
+  return new Date(value).toLocaleString(undefined, {
+    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  })
+}
+
+// "+15 · 02 Nov 2026, 20:50" or a dash if the product never got stock in
+function LastStockIn({ at, qty }) {
+  if (!at) return <span className="text-white/35">No stock-in yet</span>
+  return (
+    <span className="whitespace-nowrap">
+      <span className="chip bg-accent/15 text-accent mr-2">+{qty}</span>
+      <span className="text-white/60">{stamp(at)}</span>
+    </span>
+  )
+}
 
 export default function Products() {
   const [products, setProducts] = useState([])
@@ -16,16 +35,6 @@ export default function Products() {
 
   function openAdd() { setEditing(null); setFormOpen(true) }
   function openEdit(p) { setEditing(p); setFormOpen(true) }
-
-  async function removeProduct(p) {
-    if (!confirm(`Remove "${p.name}"?\n\nIt will be hidden from the product list and new bills. Old bills will still show it.`)) return
-    const { error } = await supabase
-      .from('products')
-      .update({ is_active: false })
-      .eq('id', p.id)
-    if (error) setError(error.message)
-    else loadProducts()
-  }
 
   async function loadProducts() {
     const { data, error } = await supabase
@@ -56,6 +65,9 @@ export default function Products() {
   return (
     <div>
       <PageTitle title="Products" subtitle="Manage stock, prices and products">
+        <Link to="/stock-history" className="btn btn-ghost">
+          <History size={16} /> Stock history
+        </Link>
         <button onClick={openAdd} className="btn btn-lime">
           <Plus size={16} /> Add product
         </button>
@@ -120,6 +132,7 @@ export default function Products() {
                     <th className="px-5 py-4 font-semibold text-right">Cost</th>
                     <th className="px-5 py-4 font-semibold text-right">Price</th>
                     <th className="px-5 py-4 font-semibold text-center">Stock</th>
+                    <th className="px-5 py-4 font-semibold">Last stock in</th>
                     <th className="px-5 py-4 font-semibold">Last updated</th>
                     <th className="px-5 py-4"></th>
                   </tr>
@@ -138,7 +151,10 @@ export default function Products() {
                       <td className="px-5 py-3.5 text-right text-white/60"><Money value={p.cost_price} /></td>
                       <td className="px-5 py-3.5 text-right font-semibold"><Money value={p.sell_price} /></td>
                       <td className="px-5 py-3.5 text-center"><StockChip qty={p.qty} low={p.low_stock_level} /></td>
-                      <td className="px-5 py-3.5 text-white/50">{new Date(p.updated_at).toLocaleString()}</td>
+                      <td className="px-5 py-3.5 text-xs">
+                        <LastStockIn at={p.last_stock_in_at} qty={p.last_stock_in_qty} />
+                      </td>
+                      <td className="px-5 py-3.5 text-white/50 text-xs">{stamp(p.updated_at)}</td>
                       <td className="px-5 py-3.5">
                         <div className="flex justify-end gap-1.5">
                           <button onClick={() => setStockProduct(p)} title="Stock in" aria-label="Stock in"
@@ -148,10 +164,6 @@ export default function Products() {
                           <button onClick={() => openEdit(p)} title="Edit" aria-label="Edit"
                             className={`${iconBtn} hover:bg-white/15`}>
                             <Pencil size={14} />
-                          </button>
-                          <button onClick={() => removeProduct(p)} title="Remove" aria-label="Remove"
-                            className={`${iconBtn} hover:bg-red-500/20 hover:text-red-300 hover:border-red-400/30`}>
-                            <Trash2 size={14} />
                           </button>
                         </div>
                       </td>
@@ -173,21 +185,23 @@ export default function Products() {
                   </div>
                   <StockChip qty={p.qty} low={p.low_stock_level} />
                 </div>
+
+                <div className="mt-3 text-xs">
+                  <LastStockIn at={p.last_stock_in_at} qty={p.last_stock_in_qty} />
+                </div>
+
                 <div className="mt-3 flex justify-between items-center">
                   <div>
                     <Money value={p.sell_price} className="text-lg font-semibold text-accent" />
-                    <p className="text-[11px] muted">Updated {new Date(p.updated_at).toLocaleDateString()}</p>
+                    <p className="text-[11px] muted">Updated {stamp(p.updated_at)}</p>
                   </div>
                   <div className="flex gap-1.5">
                     <button onClick={() => setStockProduct(p)} aria-label="Stock in"
-                      className={`w-10 h-10 rounded-full grid place-items-center border bg-accent/15 text-accent border-accent/30`}>
+                      className="w-10 h-10 rounded-full grid place-items-center border bg-accent/15 text-accent border-accent/30">
                       <PackagePlus size={16} />
                     </button>
-                    <button onClick={() => openEdit(p)} aria-label="Edit" className={`${iconBtnLg}`}>
+                    <button onClick={() => openEdit(p)} aria-label="Edit" className={iconBtnLg}>
                       <Pencil size={15} />
-                    </button>
-                    <button onClick={() => removeProduct(p)} aria-label="Remove" className={`${iconBtnLg} text-red-300`}>
-                      <Trash2 size={15} />
                     </button>
                   </div>
                 </div>
@@ -202,6 +216,7 @@ export default function Products() {
           product={editing}
           onClose={() => setFormOpen(false)}
           onSaved={() => { setFormOpen(false); loadProducts() }}
+          onRemoved={() => { setFormOpen(false); loadProducts() }}
         />
       )}
 

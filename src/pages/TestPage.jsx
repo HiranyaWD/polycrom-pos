@@ -6,7 +6,7 @@ export default function App() {
   const [password, setPassword] = useState('')
   const [products, setProducts] = useState([])
   const [bills, setBills] = useState([])
-  const [message, setMessage] = useState('')
+  
 
   const [selectedProduct, setSelectedProduct] = useState('')
   const [qty, setQty] = useState(1)

@@ -13,6 +13,8 @@ export default function NewBill() {
   const navigate = useNavigate()
 
   const [products, setProducts] = useState([])
+  const [categories, setCategories] = useState([])
+  const [categoryId, setCategoryId] = useState('all') // 'all' or a category id
   const [routes, setRoutes] = useState([])
   const [shops, setShops] = useState([])
   const [balances, setBalances] = useState({})
@@ -33,7 +35,7 @@ export default function NewBill() {
   const routeNameOf = id => routes.find(r => r.id === id)?.name ?? ''
 
   async function loadAll() {
-    const [p, r, s, b, inv] = await Promise.all([
+    const [p, r, s, b, inv, c] = await Promise.all([
       supabase.from('products').select('*').eq('is_active', true).order('name'),
       supabase.from('routes').select('*').eq('is_active', true).order('name'),
       supabase.from('shops').select('*').eq('is_active', true).order('name'),
@@ -42,12 +44,14 @@ export default function NewBill() {
         .not('shop_id', 'is', null)
         .order('created_at', { ascending: false })
         .limit(60),
+      supabase.from('categories').select('*').eq('is_active', true).order('name'),
     ])
     setLoading(false)
     const err = p.error || r.error || s.error || b.error || inv.error
     if (err) { setError(err.message); return }
 
     setProducts(p.data)
+    setCategories(c.data ?? [])
     setRoutes(r.data)
     setShops(s.data)
     setBalances(Object.fromEntries(b.data.map(x => [x.shop_id, Number(x.balance)])))
@@ -90,8 +94,9 @@ export default function NewBill() {
 
   // ---- Products ----
   const filtered = products.filter(p =>
-    p.name.toLowerCase().includes(search.toLowerCase()) ||
-    (p.code ?? '').toLowerCase().includes(search.toLowerCase())
+    (categoryId === 'all' || String(p.category_id) === categoryId) &&
+    (p.name.toLowerCase().includes(search.toLowerCase()) ||
+     (p.code ?? '').toLowerCase().includes(search.toLowerCase()))
   )
 
   function addToCart(product) {
@@ -315,7 +320,17 @@ export default function NewBill() {
                   />
                 </div>
 
-                <div className="mt-4 grid sm:grid-cols-2 gap-2 max-h-[52vh] overflow-y-auto pr-1">
+                {/* Category buttons */}
+            <div className="mt-4 flex flex-wrap gap-2">
+              <RouteChip active={categoryId === 'all'} onClick={() => setCategoryId('all')}>All</RouteChip>
+              {categories.map(c => (
+                <RouteChip key={c.id} active={categoryId === String(c.id)} onClick={() => setCategoryId(String(c.id))}>
+                  {c.name}
+                </RouteChip>
+              ))}
+            </div>
+
+            <div className="mt-3 grid sm:grid-cols-2 gap-2 max-h-[52vh] overflow-y-auto pr-1">
                   {filtered.length === 0 && <p className="muted text-sm p-3">No products found.</p>}
                   {filtered.map(p => {
                     const qtyInCart = inCart(p.id)

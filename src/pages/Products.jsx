@@ -26,7 +26,9 @@ function LastStockIn({ at, qty }) {
 
 export default function Products() {
   const [products, setProducts] = useState([])
+  const [categories, setCategories] = useState([])
   const [search, setSearch] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('all') // 'all' | 'none' | a category id
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [formOpen, setFormOpen] = useState(false)
@@ -37,22 +39,30 @@ export default function Products() {
   function openEdit(p) { setEditing(p); setFormOpen(true) }
 
   async function loadProducts() {
-    const { data, error } = await supabase
-      .from('products')
-      .select('*')
-      .eq('is_active', true)
-      .order('name')
+    const [p, c] = await Promise.all([
+      supabase.from('products').select('*').eq('is_active', true).order('name'),
+      supabase.from('categories').select('*').order('name'),
+    ])
     setLoading(false)
-    if (error) setError(error.message)
-    else setProducts(data)
+    const err = p.error || c.error
+    if (err) setError(err.message)
+    else {
+      setProducts(p.data)
+      setCategories(c.data)
+    }
   }
 
   useEffect(() => { loadProducts() }, [])
 
-  const filtered = products.filter(p =>
-    p.name.toLowerCase().includes(search.toLowerCase()) ||
-    (p.code ?? '').toLowerCase().includes(search.toLowerCase())
-  )
+  const categoryName = id => categories.find(c => c.id === id)?.name ?? ''
+  const catLabel = p => (p.category_id != null ? categoryName(p.category_id) : '') || 'No category'
+
+  const q = search.toLowerCase()
+  const filtered = products.filter(p => {
+    if (categoryFilter === 'none' && p.category_id != null) return false
+    if (categoryFilter !== 'all' && categoryFilter !== 'none' && String(p.category_id) !== categoryFilter) return false
+    return p.name.toLowerCase().includes(q) || (p.code ?? '').toLowerCase().includes(q)
+  })
 
   // Summary numbers
   const lowCount = products.filter(p => p.qty > 0 && p.qty <= p.low_stock_level).length
@@ -96,16 +106,29 @@ export default function Products() {
         </Reveal>
       </div>
 
-      {/* Search */}
+      {/* Search and category filter */}
       <Reveal delay={300} className="mt-6 mb-4">
-        <div className="relative max-w-md">
-          <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40" />
-          <input
-            placeholder="Search by name or code..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="field rounded-full pl-11"
-          />
+        <div className="flex flex-wrap gap-2 max-w-2xl">
+          <div className="relative flex-1 min-w-[12rem]">
+            <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40" />
+            <input
+              placeholder="Search by name or code..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="field rounded-full pl-11"
+            />
+          </div>
+          <select
+            value={categoryFilter}
+            onChange={e => setCategoryFilter(e.target.value)}
+            className="field rounded-full sm:w-52"
+          >
+            <option value="all">All categories</option>
+            {categories.map(c => (
+              <option key={c.id} value={c.id}>{c.name}{c.is_active ? '' : ' (hidden)'}</option>
+            ))}
+            <option value="none">No category</option>
+          </select>
         </div>
       </Reveal>
 
@@ -118,7 +141,9 @@ export default function Products() {
       ) : filtered.length === 0 ? (
         <div className="glass p-10 text-center anim-fade-up">
           <Boxes size={28} className="mx-auto text-white/30" />
-          <p className="muted mt-3">{search ? 'No products match your search.' : 'No products yet. Add your first one.'}</p>
+          <p className="muted mt-3">
+            {search || categoryFilter !== 'all' ? 'No products match these filters.' : 'No products yet. Add your first one.'}
+          </p>
         </div>
       ) : (
         <>
@@ -146,7 +171,9 @@ export default function Products() {
                     >
                       <td className="px-5 py-3.5">
                         <p className="font-semibold">{p.name}</p>
-                        <p className="text-xs muted">{p.code || 'No code'}</p>
+                        <p className="text-xs muted">
+                          {p.code || 'No code'} · <span className="text-white/60">{catLabel(p)}</span>
+                        </p>
                       </td>
                       <td className="px-5 py-3.5 text-right text-white/60"><Money value={p.cost_price} /></td>
                       <td className="px-5 py-3.5 text-right font-semibold"><Money value={p.sell_price} /></td>
@@ -181,7 +208,7 @@ export default function Products() {
                 <div className="flex justify-between items-start gap-3">
                   <div className="min-w-0">
                     <p className="font-semibold truncate">{p.name}</p>
-                    <p className="text-xs muted">{p.code || 'No code'}</p>
+                    <p className="text-xs muted">{p.code || 'No code'} · {catLabel(p)}</p>
                   </div>
                   <StockChip qty={p.qty} low={p.low_stock_level} />
                 </div>

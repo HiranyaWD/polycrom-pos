@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { X, Trash2 } from 'lucide-react'
 import { supabase } from '../supabase'
 import { Modal } from './ui'
@@ -8,13 +8,23 @@ export default function ProductForm({ product, onClose, onSaved, onRemoved }) {
   const [form, setForm] = useState({
     name: product?.name ?? '',
     code: product?.code ?? '',
+    category_id: product?.category_id != null ? String(product.category_id) : '',
     cost_price: product?.cost_price ?? '',
     sell_price: product?.sell_price ?? '',
     low_stock_level: product?.low_stock_level ?? 5,
     qty: 0,
   })
+  const [categories, setCategories] = useState([])
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    supabase.from('categories').select('*').order('name')
+      .then(({ data }) => setCategories(data ?? []))
+  }, [])
+
+  // Active categories, plus the product's current one even if it is hidden
+  const choices = categories.filter(c => c.is_active || String(c.id) === form.category_id)
 
   function update(field, value) {
     setForm(f => ({ ...f, [field]: value }))
@@ -28,6 +38,11 @@ export default function ProductForm({ product, onClose, onSaved, onRemoved }) {
     e.preventDefault()
     setError('')
 
+    if (!form.category_id) {
+      setError('Choose a category')
+      return
+    }
+
     if (price < cost) {
       if (!confirm('Selling price is lower than cost price. Save anyway?')) return
     }
@@ -36,6 +51,7 @@ export default function ProductForm({ product, onClose, onSaved, onRemoved }) {
     const data = {
       name: form.name.trim(),
       code: form.code.trim() || null,
+      category_id: Number(form.category_id),
       cost_price: cost,
       sell_price: price,
       low_stock_level: Number(form.low_stock_level) || 0,
@@ -95,9 +111,23 @@ export default function ProductForm({ product, onClose, onSaved, onRemoved }) {
           <input required autoFocus className="field" value={form.name} onChange={e => update('name', e.target.value)} />
         </div>
 
-        <div>
-          <label className="label">Code (optional)</label>
-          <input className="field" value={form.code} onChange={e => update('code', e.target.value)} />
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="label">Code (optional)</label>
+            <input className="field" value={form.code} onChange={e => update('code', e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Category *</label>
+            <select required className="field" value={form.category_id} onChange={e => update('category_id', e.target.value)}>
+              <option value="">Choose a category</option>
+              {choices.map(c => (
+                <option key={c.id} value={c.id}>{c.name}{c.is_active ? '' : ' (hidden)'}</option>
+              ))}
+            </select>
+            {categories.length === 0 && (
+              <p className="text-[11px] text-amber-300 mt-1">No categories yet. Add them in Settings first.</p>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3">

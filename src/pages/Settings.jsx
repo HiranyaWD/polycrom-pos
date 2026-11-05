@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Plus, Search, Pencil, Route as RouteIcon, Store, EyeOff, Eye } from 'lucide-react'
 import { supabase } from '../supabase'
 import { Modal, Money, PageTitle, Reveal } from '../components/ui'
+import CategoriesPanel from '../components/CategoriesPanel'
 
 // Settings: routes (delivery areas) and the shops on each route
 export default function Settings() {
@@ -225,6 +226,10 @@ export default function Settings() {
             )}
           </section>
         </Reveal>
+      </div>
+
+      <div className="mt-4">
+        <CategoriesPanel />
       </div>
 
       {routeModal && (

@@ -4,10 +4,8 @@ import { Search, Plus, Minus, X, ShoppingCart, Printer, Trash2, Store, Clock, Ro
 import { supabase } from '../supabase'
 import { CountUp, Money, PageTitle, Reveal, StockChip } from '../components/ui'
 
-// Same rule as the database function create_invoice
-const DISCOUNT_THRESHOLD = 100000 // "over 100K" means above this amount
-const DISCOUNT_LOW = 10           // normal bills
-const DISCOUNT_HIGH = 25          // bills over the threshold
+// Same rule as the database function create_invoice: every bill gets this discount
+const BASE_DISCOUNT_PCT = 25
 
 export default function NewBill() {
   const navigate = useNavigate()
@@ -25,6 +23,7 @@ export default function NewBill() {
   const [routeFilter, setRouteFilter] = useState('all') // 'all' or a route id
   const [shopSearch, setShopSearch] = useState('')
   const [paymentType, setPaymentType] = useState('cash') // 'cash' or 'credit'
+  const [extraPct, setExtraPct] = useState('')           // optional extra discount %, applied after the 25%
 
   const [search, setSearch] = useState('')
   const [cart, setCart] = useState([]) // [{ product, qty }]
@@ -152,8 +151,10 @@ export default function NewBill() {
 
   // ---- Totals (preview only; the database works the same way when saving) ----
   const subtotal = cart.reduce((sum, i) => sum + Number(i.product.sell_price) * i.qty, 0)
-  const discountPct = subtotal > DISCOUNT_THRESHOLD ? DISCOUNT_HIGH : DISCOUNT_LOW
-  const discount = Math.round(subtotal * discountPct) / 100
+  const baseDiscount = Math.round(subtotal * BASE_DISCOUNT_PCT) / 100
+  const extraPctNum = Math.min(100, Math.max(0, Number(extraPct) || 0))
+  const extraDiscount = Math.round((subtotal - baseDiscount) * extraPctNum) / 100
+  const discount = baseDiscount + extraDiscount
   const total = subtotal - discount
 
   const owed = shop ? (balances[shop.id] ?? 0) : 0
@@ -169,6 +170,7 @@ export default function NewBill() {
       p_items: cart.map(i => ({ product_id: i.product.id, qty: i.qty })),
       p_shop_id: shop.id,
       p_payment_type: paymentType,
+      p_manual_discount_pct: extraPctNum,
     })
     setSaving(false)
 
@@ -463,14 +465,34 @@ export default function NewBill() {
                 <span>Subtotal</span><Money value={subtotal} />
               </div>
               <div className="flex justify-between text-accent">
-                <span>Discount {cart.length > 0 && `(${discountPct}%)`}</span>
-                <span>-<Money value={discount} /></span>
+                <span>Discount ({BASE_DISCOUNT_PCT}%)</span>
+                <span>-<Money value={baseDiscount} /></span>
               </div>
-              <p className="text-[11px] muted">
-                {subtotal > DISCOUNT_THRESHOLD
-                  ? `Over Rs. ${DISCOUNT_THRESHOLD.toLocaleString()}: ${DISCOUNT_HIGH}% discount`
-                  : `Up to Rs. ${DISCOUNT_THRESHOLD.toLocaleString()}: ${DISCOUNT_LOW}% discount`}
-              </p>
+              {extraDiscount > 0 && (
+                <div className="flex justify-between text-accent">
+                  <span>Extra discount ({extraPctNum}%)</span>
+                  <span>-<Money value={extraDiscount} /></span>
+                </div>
+              )}
+
+              {/* Optional extra discount for this bill */}
+              <div className="flex items-center gap-3 pt-2">
+                <span className="text-xs muted shrink-0">Extra discount</span>
+                <div className="relative flex-1">
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.5"
+                    placeholder="0"
+                    value={extraPct}
+                    onChange={e => setExtraPct(e.target.value)}
+                    className="field py-2 pr-9 text-right"
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-white/50 text-sm">%</span>
+                </div>
+              </div>
+              <p className="text-[11px] muted">Extra discount is applied after the {BASE_DISCOUNT_PCT}%.</p>
             </div>
 
             <div className="glass-accent mt-3 p-5">
@@ -482,7 +504,7 @@ export default function NewBill() {
 
             <div className="flex gap-2 mt-4">
               <button
-                onClick={() => { setCart([]); setError('') }}
+                onClick={() => { setCart([]); setExtraPct(''); setError('') }}
                 disabled={cart.length === 0}
                 className="btn btn-ghost"
                 aria-label="Clear bill"

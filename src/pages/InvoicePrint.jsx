@@ -54,6 +54,9 @@ export default function InvoicePrint() {
   const subtotal = Number(invoice.subtotal ?? invoice.total)
   const discount = Number(invoice.discount_amount ?? 0)
   const discountPct = Number(invoice.discount_percent ?? 0)
+  const extraDiscountAmt = Number(invoice.manual_discount_amount ?? 0)
+  const extraDiscountPct = Number(invoice.manual_discount_percent ?? 0)
+  const baseDiscountAmt = discount - extraDiscountAmt
 
   return (
     <div>
@@ -135,10 +138,16 @@ export default function InvoicePrint() {
             <span>Subtotal</span>
             <span>Rs. {subtotal.toFixed(2)}</span>
           </div>
-          {discount > 0 && (
+          {baseDiscountAmt > 0 && (
             <div className="flex justify-between">
               <span>Discount ({discountPct}%)</span>
-              <span>- Rs. {discount.toFixed(2)}</span>
+              <span>- Rs. {baseDiscountAmt.toFixed(2)}</span>
+            </div>
+          )}
+          {extraDiscountAmt > 0 && (
+            <div className="flex justify-between">
+              <span>Extra discount ({extraDiscountPct}%)</span>
+              <span>- Rs. {extraDiscountAmt.toFixed(2)}</span>
             </div>
           )}
           <div className="flex justify-between font-bold text-[1.1em] pt-1">

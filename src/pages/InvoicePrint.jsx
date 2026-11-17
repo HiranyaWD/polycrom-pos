@@ -3,15 +3,25 @@ import { useParams, useSearchParams, useNavigate } from 'react-router'
 import { ArrowLeft, Printer } from 'lucide-react'
 import { supabase } from '../supabase'
 
-// Change to 'A4' if the client uses a normal A4 printer
-const PAPER = '80mm'
-
-// Edit these with the client's real details
+// Business details printed at the top of every bill (from the client's template)
 const BUSINESS = {
-  name: 'RMK Enterprises',
-  sub: 'Polycrom Distributor',
-  address: 'Your address here',
-  phone: '07X XXX XXXX',
+  name: 'R M K ENTERPRISES',
+  address: 'NO 164/2 A,-KOSHENA ROAD, BRAHMANAGAMA,PANNIPITIYA.',
+  tel: '0751876085',
+  taxReg: 'No',
+  salesperson: 'W.K SAMEERA',
+}
+
+const money = n =>
+  Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+function Row({ label, value, bold = false }) {
+  return (
+    <div className={`flex justify-between gap-6 ${bold ? 'font-bold' : ''}`}>
+      <span>{label}</span>
+      <span className="tabular-nums text-right">{value}</span>
+    </div>
+  )
 }
 
 export default function InvoicePrint() {
@@ -24,7 +34,7 @@ export default function InvoicePrint() {
   useEffect(() => {
     supabase
       .from('invoices')
-      .select('*, invoice_items(*)')
+      .select('*, invoice_items(*, products(code)), shops(address)')
       .eq('id', id)
       .single()
       .then(({ data, error }) => {
@@ -46,25 +56,21 @@ export default function InvoicePrint() {
   if (error) return <p className="text-red-300">{error}</p>
   if (!invoice) return <div className="glass h-96 max-w-md mx-auto animate-pulse" />
 
-  const isThermal = PAPER === '80mm'
   const cancelled = invoice.status === 'cancelled'
   const isCredit = invoice.payment_type === 'credit'
 
   // Older bills (before discounts) have no subtotal, so use the total
   const subtotal = Number(invoice.subtotal ?? invoice.total)
-  const discount = Number(invoice.discount_amount ?? 0)
-  const discountPct = Number(invoice.discount_percent ?? 0)
-  const extraDiscountAmt = Number(invoice.manual_discount_amount ?? 0)
-  const extraDiscountPct = Number(invoice.manual_discount_percent ?? 0)
-  const baseDiscountAmt = discount - extraDiscountAmt
+  const extraAmt = Number(invoice.manual_discount_amount ?? 0)
+  const extraPct = Number(invoice.manual_discount_percent ?? 0)
+  const baseDiscountAmt = Number(invoice.discount_amount ?? 0) - extraAmt
+  const total = Number(invoice.total)
+
+  const dateText = new Date(invoice.created_at).toLocaleDateString('en-US') // 11/17/2026
 
   return (
     <div>
-      <style>
-        {isThermal
-          ? '@page { size: 80mm auto; margin: 0 }'
-          : '@page { size: A4; margin: 12mm }'}
-      </style>
+      <style>{'@page { size: A4; margin: 12mm }'}</style>
 
       {/* Buttons, hidden when printing */}
       <div className="anim-fade-up flex flex-wrap items-center justify-between gap-3 mb-6 print:hidden">
@@ -82,90 +88,66 @@ export default function InvoicePrint() {
         </div>
       </div>
 
-      {/* The invoice */}
-      <div
-        className={`anim-pop bg-white text-black mx-auto shadow-[0_30px_80px_-20px_rgba(0,0,0,0.7)] print:shadow-none print:animate-none ${
-          isThermal
-            ? 'w-[72mm] p-3 text-[11px] rounded-lg print:p-1 print:rounded-none'
-            : 'max-w-2xl p-8 text-sm rounded-2xl print:p-0 print:rounded-none'
-        }`}
-      >
-        <div className="text-center mb-3">
-          <p className={`font-bold ${isThermal ? 'text-base' : 'text-2xl'}`}>{BUSINESS.name}</p>
-          <p>{BUSINESS.sub}</p>
+      {/* The bill: plain A4 layout, same as the client's template */}
+      <div className="anim-pop bg-white text-black mx-auto max-w-[210mm] p-10 text-[13px] leading-snug shadow-[0_30px_80px_-20px_rgba(0,0,0,0.7)] print:shadow-none print:p-0 print:max-w-none print:animate-none">
+        {/* Business header */}
+        <div className="text-center">
+          <p className="text-lg">{BUSINESS.name}</p>
           <p>{BUSINESS.address}</p>
-          <p>Tel: {BUSINESS.phone}</p>
+          <p>Tel: {BUSINESS.tel}</p>
+          <p>Tax Reg: {BUSINESS.taxReg}</p>
         </div>
+
+        {/* Salesperson */}
+        <p className="mt-10">{BUSINESS.salesperson}</p>
 
         {cancelled && (
-          <p className="text-center font-bold border-2 border-black py-1 mb-2">CANCELLED</p>
+          <p className="text-center font-bold border-2 border-black py-1 mt-4">CANCELLED</p>
         )}
 
-        <div className="border-t border-b border-dashed border-black py-2 mb-2 flex justify-between">
-          <span>Invoice: <b>{invoice.invoice_no}</b></span>
-          <span>{new Date(invoice.created_at).toLocaleString()}</span>
+        {/* Shop and invoice details */}
+        <div className="grid grid-cols-2 gap-6 mt-8">
+          <div>
+            <p>{invoice.shop_name}</p>
+            {invoice.shops?.address && <p>{invoice.shops.address}</p>}
+          </div>
+          <div>
+            <p>{invoice.invoice_no}</p>
+            <p className="mt-3">{dateText}</p>
+            <p>{isCredit ? 'Credit' : 'Cash'}</p>
+          </div>
         </div>
 
-        {/* Shop name only, as the client asked */}
-        {invoice.shop_name && (
-          <p className="mb-2">Shop: <b>{invoice.shop_name}</b></p>
-        )}
-
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-dashed border-black">
-              <th className="text-left py-1">Item</th>
-              <th className="text-right py-1">Qty</th>
-              <th className="text-right py-1">Price</th>
-              <th className="text-right py-1">Amount</th>
-            </tr>
-          </thead>
+        {/* Items */}
+        <table className="w-full mt-10">
           <tbody>
             {invoice.invoice_items.map(item => (
-              <tr key={item.id}>
-                <td className="py-1 pr-1">{item.product_name}</td>
-                <td className="text-right py-1">{item.qty}</td>
-                <td className="text-right py-1">{Number(item.unit_price).toFixed(2)}</td>
-                <td className="text-right py-1">{Number(item.line_total).toFixed(2)}</td>
+              <tr key={item.id} className="align-top">
+                <td className="py-1 pr-3 whitespace-nowrap">{item.products?.code ?? ''}</td>
+                <td className="py-1 pr-3">{item.product_name}</td>
+                <td className="py-1 px-2 text-right">{item.qty}</td>
+                <td className="py-1 px-2 text-right">{money(item.unit_price)}</td>
+                <td className="py-1 px-2 text-right">0.00</td>
+                <td className="py-1 pl-2 text-right">{money(item.line_total)}</td>
               </tr>
             ))}
           </tbody>
         </table>
 
         {/* Totals */}
-        <div className="border-t border-dashed border-black mt-2 pt-2 space-y-1">
-          <div className="flex justify-between">
-            <span>Subtotal</span>
-            <span>Rs. {subtotal.toFixed(2)}</span>
-          </div>
-          {baseDiscountAmt > 0 && (
-            <div className="flex justify-between">
-              <span>Discount ({discountPct}%)</span>
-              <span>- Rs. {baseDiscountAmt.toFixed(2)}</span>
+        <div className="flex justify-end mt-12">
+          <div className="w-96 space-y-2">
+            <Row label="Total" value={money(subtotal)} bold />
+            <Row label="Discount" value={money(baseDiscountAmt)} />
+            <Row label="Company Discount" value={money(extraAmt)} />
+            <Row label="Company Discount (%)" value={extraPct ? `${extraPct}%` : ''} />
+            <div className="pt-3">
+              <div className="border-t border-black border-b-[3px] border-double pb-1">
+                <Row label="Total After Discount" value={money(total)} bold />
+              </div>
             </div>
-          )}
-          {extraDiscountAmt > 0 && (
-            <div className="flex justify-between">
-              <span>Extra discount ({extraDiscountPct}%)</span>
-              <span>- Rs. {extraDiscountAmt.toFixed(2)}</span>
-            </div>
-          )}
-          <div className="flex justify-between font-bold text-[1.1em] pt-1">
-            <span>TOTAL</span>
-            <span>Rs. {Number(invoice.total).toFixed(2)}</span>
           </div>
         </div>
-
-        {/* Payment */}
-        <div className="border-t border-dashed border-black mt-2 pt-2 text-center font-bold">
-          {cancelled
-            ? 'Cancelled'
-            : isCredit
-              ? 'ON CREDIT: to be paid later'
-              : 'PAID'}
-        </div>
-
-        <p className="text-center mt-4">Thank you!</p>
       </div>
     </div>
   )

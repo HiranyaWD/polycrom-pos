@@ -12,12 +12,16 @@ const BUSINESS = {
   salesperson: 'W.K SAMEERA',
 }
 
+// Same font and page size as the client's template
+const BILL_FONT = { fontFamily: "'Times New Roman', Times, serif" }
+
 const money = n =>
   Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-function Row({ label, value, bold = false }) {
+// One totals line: label on the left, amount on the right
+function TotalRow({ label, value, bold = false }) {
   return (
-    <div className={`flex justify-between gap-6 ${bold ? 'font-bold' : ''}`}>
+    <div className={`flex justify-between gap-4 ${bold ? 'font-bold' : ''}`}>
       <span>{label}</span>
       <span className="tabular-nums text-right">{value}</span>
     </div>
@@ -47,11 +51,19 @@ export default function InvoicePrint() {
   useEffect(() => {
     if (!invoice || params.get('print') !== '1') return
     const timer = setTimeout(() => {
-      window.print()
+      printBill()
       navigate(`/invoice/${id}`, { replace: true }) // so refresh won't print again
     }, 300)
     return () => clearTimeout(timer)
   }, [invoice])
+
+  // The browser's "Save as PDF" option uses the page title as the file name
+  function printBill() {
+    const before = document.title
+    if (invoice) document.title = invoice.invoice_no
+    window.print()
+    document.title = before
+  }
 
   if (error) return <p className="text-red-300">{error}</p>
   if (!invoice) return <div className="glass h-96 max-w-md mx-auto animate-pulse" />
@@ -70,7 +82,8 @@ export default function InvoicePrint() {
 
   return (
     <div>
-      <style>{'@page { size: A4; margin: 12mm }'}</style>
+      {/* A4 page, no browser header/footer */}
+      <style>{'@page { size: A4; margin: 0 }'}</style>
 
       {/* Buttons, hidden when printing */}
       <div className="anim-fade-up flex flex-wrap items-center justify-between gap-3 mb-6 print:hidden">
@@ -82,68 +95,79 @@ export default function InvoicePrint() {
           <button onClick={() => navigate(-1)} className="btn btn-ghost">
             <ArrowLeft size={16} /> Back
           </button>
-          <button onClick={() => window.print()} className="btn btn-lime">
-            <Printer size={16} /> Print
+          <button onClick={printBill} className="btn btn-lime">
+            <Printer size={16} /> Print / Save PDF
           </button>
         </div>
       </div>
 
-      {/* The bill: plain A4 layout, same as the client's template */}
-      <div className="anim-pop bg-white text-black mx-auto max-w-[210mm] p-10 text-[13px] leading-snug shadow-[0_30px_80px_-20px_rgba(0,0,0,0.7)] print:shadow-none print:p-0 print:max-w-none print:animate-none">
-        {/* Business header */}
-        <div className="text-center">
-          <p className="text-lg">{BUSINESS.name}</p>
-          <p>{BUSINESS.address}</p>
-          <p>Tel: {BUSINESS.tel}</p>
-          <p>Tax Reg: {BUSINESS.taxReg}</p>
-        </div>
-
-        {/* Salesperson */}
-        <p className="mt-10">{BUSINESS.salesperson}</p>
-
-        {cancelled && (
-          <p className="text-center font-bold border-2 border-black py-1 mt-4">CANCELLED</p>
-        )}
-
-        {/* Shop and invoice details */}
-        <div className="grid grid-cols-2 gap-6 mt-8">
-          <div>
-            <p>{invoice.shop_name}</p>
-            {invoice.shops?.address && <p>{invoice.shops.address}</p>}
+      {/* Scrolls sideways on a phone; the page itself is always A4 size */}
+      <div className="overflow-x-auto print:overflow-visible">
+        <div
+          style={BILL_FONT}
+          className="anim-pop bg-white text-black mx-auto w-[210mm] min-h-[297mm] px-[20mm] py-[18mm] text-[11pt] leading-[1.35] shadow-[0_30px_80px_-20px_rgba(0,0,0,0.7)] print:shadow-none print:animate-none print:w-auto print:min-h-0 print:mx-0"
+        >
+          {/* Business header */}
+          <div className="text-center">
+            <p className="text-[15pt]">{BUSINESS.name}</p>
+            <p>{BUSINESS.address}</p>
+            <p>Tel: {BUSINESS.tel}</p>
+            <p>Tax Reg: {BUSINESS.taxReg}</p>
           </div>
-          <div>
-            <p>{invoice.invoice_no}</p>
-            <p className="mt-3">{dateText}</p>
-            <p>{isCredit ? 'Credit' : 'Cash'}</p>
+
+          {/* Salesperson */}
+          <p className="mt-10">{BUSINESS.salesperson}</p>
+
+          {cancelled && (
+            <p className="text-center font-bold border-2 border-black py-1 mt-4">CANCELLED</p>
+          )}
+
+          {/* Shop on the left, invoice details on the right */}
+          <div className="grid mt-8" style={{ gridTemplateColumns: '49% 51%' }}>
+            <div>
+              <p>{invoice.shop_name}</p>
+              {invoice.shops?.address && <p>{invoice.shops.address}</p>}
+            </div>
+            <div>
+              <p>{invoice.invoice_no}</p>
+              <p className="mt-3">{dateText}</p>
+              <p>{isCredit ? 'Credit' : 'Cash'}</p>
+            </div>
           </div>
-        </div>
 
-        {/* Items */}
-        <table className="w-full mt-10">
-          <tbody>
-            {invoice.invoice_items.map(item => (
-              <tr key={item.id} className="align-top">
-                <td className="py-1 pr-3 whitespace-nowrap">{item.products?.code ?? ''}</td>
-                <td className="py-1 pr-3">{item.product_name}</td>
-                <td className="py-1 px-2 text-right">{item.qty}</td>
-                <td className="py-1 px-2 text-right">{money(item.unit_price)}</td>
-                <td className="py-1 px-2 text-right">0.00</td>
-                <td className="py-1 pl-2 text-right">{money(item.line_total)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+          {/* Items: columns line up with the template */}
+          <table className="w-full table-fixed mt-12">
+            <colgroup>
+              <col style={{ width: '19%' }} />
+              <col style={{ width: '33%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '11%' }} />
+              <col style={{ width: '11%' }} />
+              <col style={{ width: '16%' }} />
+            </colgroup>
+            <tbody>
+              {invoice.invoice_items.map(item => (
+                <tr key={item.id} className="align-top">
+                  <td className="py-1.5 pr-2">{item.products?.code ?? ''}</td>
+                  <td className="py-1.5 pr-3">{item.product_name}</td>
+                  <td className="py-1.5 text-right">{item.qty}</td>
+                  <td className="py-1.5 text-right">{money(item.unit_price)}</td>
+                  <td className="py-1.5 text-right">0.00</td>
+                  <td className="py-1.5 text-right">{money(item.line_total)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
 
-        {/* Totals */}
-        <div className="flex justify-end mt-12">
-          <div className="w-96 space-y-2">
-            <Row label="Total" value={money(subtotal)} bold />
-            <Row label="Discount" value={money(baseDiscountAmt)} />
-            <Row label="Company Discount" value={money(extraAmt)} />
-            <Row label="Company Discount (%)" value={extraPct ? `${extraPct}%` : ''} />
+          {/* Totals, on the right half */}
+          <div className="ml-[62%] mt-12 space-y-1.5">
+            <TotalRow label="Total" value={money(subtotal)} bold />
+            <TotalRow label="Discount" value={money(baseDiscountAmt)} />
+            <TotalRow label="Company Discount" value={money(extraAmt)} />
+            <TotalRow label="Company Discount (%)" value={extraPct ? `${extraPct}%` : ''} />
             <div className="pt-3">
               <div className="border-t border-black border-b-[3px] border-double pb-1">
-                <Row label="Total After Discount" value={money(total)} bold />
+                <TotalRow label="Total After Discount" value={money(total)} bold />
               </div>
             </div>
           </div>
